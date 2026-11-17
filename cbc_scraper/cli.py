@@ -17,7 +17,7 @@ from rich.box import Box
 from .client import Client, ScraperError, request_headers
 from .auth import find_request, REQUEST_TEMPLATE
 from .config import YEAR_TASKS
-from .history import browse
+from .history import browse, dump_text, ordered
 from .graphs import graph_menu
 from .stats import leaderboard, submissions
 
@@ -142,6 +142,7 @@ def parser():
             "offline",
             "history",
             "graphs",
+            "dump",
         ],
         nargs="?",
         default="leaderboard",
@@ -432,7 +433,19 @@ def fetch_data(client, leaderboard_html, labels, args, year):
 
 
 def display_report(report, raw_data, args):
-    if args.command == "history":
+    if args.command == "dump":
+        if args.format == "json":
+            content = json.dumps(ordered(raw_data), indent=2) + "\n"
+            default_name = "all_attempts.json"
+        else:
+            content = dump_text(raw_data)
+            default_name = "all_attempts.txt"
+        destination = args.output or args.data_dir / default_name
+        save(destination, content)
+        Console(stderr=True).print(
+            f"Saved {len(raw_data)} submissions to {destination}", markup=False
+        )
+    elif args.command == "history":
         browse(raw_data, args, Console())
     elif args.format == "table":
         render(report, args)
@@ -455,9 +468,11 @@ def validate_arguments(argument_parser, args):
         argument_parser.error(
             "offline, history, and graphs use table output; export through leaderboard or submissions"
         )
+    if args.command == "dump" and (args.format == "csv" or args.all_years):
+        argument_parser.error("dump supports --format table (text) or json")
     if args.top < 1:
         argument_parser.error("--top must be positive")
-    if args.output and args.format == "table":
+    if args.output and args.format == "table" and args.command != "dump":
         argument_parser.error("--output requires --format json or csv")
     if args.all_years and (
         args.year
@@ -507,7 +522,9 @@ def run_reports(args):
             else submissions(raw_data)
         )
         report = {
-            "kind": "submissions" if args.command == "history" else args.command,
+            "kind": "submissions"
+            if args.command in ("history", "dump")
+            else args.command,
             "year": year,
             "stats": stats,
         }

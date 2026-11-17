@@ -178,3 +178,26 @@ def select_task(tasks, groups, console):
     if choice == "q":
         return
     return task_choices[choice]
+
+
+def dump_text(rows):
+    """All submissions as one plain-text document, grouped by task, oldest first."""
+    groups = {}
+    for row in rows:
+        groups.setdefault(str(row.get("task", "Unknown")), []).append(row)
+    out = [f"Total submissions: {len(rows)}", ""]
+    for task in sorted(groups, key=task_order):
+        entries = ordered(groups[task])
+        out += ["=" * 72, f"{task}: {len(entries)} submissions", "=" * 72, ""]
+        for number, row in enumerate(entries, 1):
+            when = timestamp(row.get("at"))
+            stamp = when.strftime("%Y-%m-%d %H:%M:%S") if when else "Unknown"
+            out += [
+                f"--- {task} #{number} | {stamp} UTC ---",
+                "Submission:",
+                payload(row),
+                "API response:",
+                literal(row.get("response", "")),
+                "",
+            ]
+    return "\n".join(out)
